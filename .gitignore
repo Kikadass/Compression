@@ -47,3 +47,10 @@ Compression/cmake-build-debug/CMakeFiles/3.8.2/CompilerIdCXX/CMakeCXXCompilerId.
 Compression/cmake-build-debug/CMakeFiles/Compression.dir/main.cpp.o
 
 Compression/cmake-build-debug/CMakeFiles/feature_tests.cxx
+*.user
+*.tlog
+*.obj
+*.idb
+*.pdb
+x64/Debug/Compression.exe
+x64/Debug/Compression.ilk

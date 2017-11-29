@@ -3,6 +3,7 @@
 #include <opencv2/highgui/highgui.hpp>
 
 #include <iostream>
+#include "PPM.h"
 #include <opencv/cv.hpp>
 
 using namespace cv;
@@ -131,8 +132,7 @@ void invertDFT(Mat& image, Mat& destImage){
 }
 
 // take the image and make it dft in order to apply filters later
-void readyDFT(String location, Mat& destImage){
-    Mat image = imread(location, CV_LOAD_IMAGE_GRAYSCALE);
+void readyDFT(Mat& image, Mat& destImage){
 
     Mat padded;
     //expand image to an exponential of 2
@@ -157,9 +157,9 @@ void readyDFT(String location, Mat& destImage){
     destImage = complexImage;
 }
 
-Mat createDFT() {
-    Mat dftImage;
-    readyDFT("../PandaNoise.bmp", dftImage);
+Mat createDFT(Mat& image) {
+	Mat dftImage;
+    readyDFT(image, dftImage);
 
     rearrangeDFT(dftImage);
 
@@ -176,40 +176,93 @@ Mat createDFT() {
 
 }
 
-int main( int argc, char** argv ) {
-    Mat original;
-    Mat originalBnW;
-    Mat noisy;
+int main(int argc, char** argv) {
+	Mat original;
+	//Mat ppm;
+	int x;
 
 
+	// Read the file
+	//original = imread("./Images/PandaOriginal.bmp", CV_LOAD_IMAGE_GRAYSCALE);
+	original = imread("./Images/1.ppm", CV_LOAD_IMAGE_GRAYSCALE);
 
-    // Read the file
-    original = imread("../PandaOriginal.bmp", CV_LOAD_IMAGE_COLOR);
-    originalBnW = imread("../PandaOriginal.bmp", CV_LOAD_IMAGE_GRAYSCALE);
-    noisy = imread("../PandaNoise.bmp", CV_LOAD_IMAGE_COLOR);
+	//ppm = imread("../PandaNoise.bmp", CV_LOAD_IMAGE_GRAYSCALE);
 
 
-    if(! noisy.data ){                              // Check for invalid input
-        cout <<  "Could not open or find the image" << std::endl ;
-        return -1;
-    }
+	if (!original.data) {                              // Check for invalid input
+		cout << "Could not open or find the image" << endl;
+		cin >> x;
+		return -1;
+	}
 
+
+	_ppm ppm;
+
+	if (ppm.load_ppm("./Images/1.ppm") == -1) {
+		cout << "!!! Error while loading image" << endl << endl;
+		cin >> x;
+
+		return 1;
+	}
+
+
+	cout << "Image Details:" << endl << endl;
+	cout << "Height: " << ppm.get_image_height() << endl;
+	cout << "Width: " << ppm.get_image_width() << endl;
+	cout << "Depth: " << ppm.get_image_depth() << endl << endl;
+
+	cout << "Changing pixel values..." << endl;
+
+	int b, g, r; //define some pixel variables 
+
+	for (int x = 0; x<ppm.get_image_width() - 1; x++)
+	{
+		for (int y = 0; y<ppm.get_image_height() - 1; y++) //loop to lighten an image
+		{
+			r = ppm.get_pixel(x, y, RED);
+			g = ppm.get_pixel(x, y, GREEN);
+			b = ppm.get_pixel(x, y, BLUE);
+
+			if (r == -1 || g == -1 || b == -1) //check for error codes
+				cout << "Error at pixel " << (y*ppm.get_image_width() + x) * 3 << endl; //get pixel position
+
+			if (g<235 && r<235 && b<235) //check that an overflow can't happen
+			{
+				ppm.set_pixel(x, y, GREEN, g + 20);
+				ppm.set_pixel(x, y, BLUE, b + 20);
+				ppm.set_pixel(x, y, RED, r + 20);
+			}
+		}
+	}
+
+	cout << "Saving..." << endl;
+
+	if (ppm.save_ppm("./Images/1-lighter.ppm") != 0) //check for saving errors
+		cout << "!!! Error while saving" << endl;
+
+	cout << "DONE!" << endl << endl;
+	cin >> x;
+
+
+	/*
 
     namedWindow("ORIGINAL", CV_WINDOW_AUTOSIZE);// Create a window for display.
-    namedWindow("NOISY", CV_WINDOW_AUTOSIZE);// Create a window for display.
+    //namedWindow("NOISY", CV_WINDOW_AUTOSIZE);// Create a window for display.
 
     imshow("ORIGINAL", original);
-    imshow("NOISY", noisy);
+    //imshow("NOISY", ppm);
 
 
     // put each image next to each other
     moveWindow("ORIGINAL", 0, 0);            // put window in certain position in the screen
-    moveWindow("NOISY", 0, noisy.rows+50);            // put window in certain position in the screen
+    //moveWindow("NOISY", 0, ppm.rows+50);            // put window in certain position in the screen
 
 
     //make images blurry taking random noise away
 
-    Mat modified7 = createDFT();
+
+
+    Mat modified7 = createDFT(original);
     modified7 = showImage("DFT", modified7, false);
 
     //normalize(modified7, modified7, 0, 1, CV_MINMAX);
@@ -218,7 +271,7 @@ int main( int argc, char** argv ) {
     //Mat modified8(modified7.rows, modified7.cols, CV_8UC4, modified7.data);
     //imwrite("DFT2.bmp", modified7);
 
-    cout << "Noisy: " << average_error(&original, &noisy) << endl;
+    //cout << "Noisy: " << average_errorBnW(&original, &ppm) << endl;
 
 
     //infinite loop
@@ -228,4 +281,6 @@ int main( int argc, char** argv ) {
             return 0;
         }
     }
+
+	*/
 }
