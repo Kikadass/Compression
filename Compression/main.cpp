@@ -10,9 +10,24 @@ using namespace cv;
 using namespace std;
 
 
+
 // distance between point 1 and point 2
 double distance(double x1, double y1, double x2, double y2) {
     return sqrt((x1 - x2) * (x1 - x2) + (y1 - y2) * (y1 - y2));
+}
+
+void scaleUp(Mat& image, string window_name, int scale){
+    resize((image), (image), (image).size()*scale, scale, scale);   //resize image
+    resizeWindow(window_name, (image).cols, (image).rows);    // resize window
+
+    imshow(window_name, image);                   // Show our image inside it.
+}
+
+void scaleDown(Mat& image, string window_name, int scale){
+    resize((image), (image), (image).size()/scale, 1/scale, 1/scale);   //resize image
+    resizeWindow(window_name, (image).cols, (image).rows);    // resize window
+
+    imshow(window_name, (image));                   // Show our image inside it.
 }
 
 float average_error(Mat* originalImage, Mat* image){
@@ -41,240 +56,193 @@ float average_error(Mat* originalImage, Mat* image){
     return (Rerror+Gerror+Berror)/3;
 }
 
-float average_errorBnW(Mat* originalImage, Mat* image){
-    float error = 0;
+vector<Mat> getQuantizationTables(int qualityFactor){
+    double scale;
 
-    for (int r = 0; r < (*image).rows; r++) {
-        for (int c = 0; c < (*image).cols; c++) {
 
-            float tmp = (*originalImage).at<uint8_t>(r,c) - (*image).at<uint8_t>(r,c);
-            //cout << tmp;
-            error += tmp*tmp;
+    int QYarray[8][8] =  {{16, 11, 10, 16, 24, 40, 51, 61},
+                     {12, 12, 14, 19, 26, 48, 60, 55},
+                     {14, 13, 16, 24, 40, 57, 69, 56},
+                     {14, 17, 22, 29, 51, 87, 80, 62},
+                     {18, 22, 37, 56, 68, 109, 103, 77},
+                     {24, 35, 55, 64, 81, 104, 113, 92},
+                     {49, 64, 78, 87, 103, 121, 120, 101},
+                     {72, 92, 95, 98, 112, 100, 103, 99}};
 
+    int QCarray[8][8]=  {{17, 18, 24, 47, 99, 99, 99, 99},
+                    {18, 21, 26, 66, 99, 99, 99, 99},
+                    {24, 26, 56, 99, 99, 99, 99, 99},
+                    {47, 66, 99, 99, 99, 99, 99, 99},
+                    {99, 99, 99, 99, 99, 99, 99, 99},
+                    {99, 99, 99, 99, 99, 99, 99, 99},
+                    {99, 99, 99, 99, 99, 99, 99, 99},
+                    {99, 99, 99, 99, 99, 99, 99, 99}};
+
+    Mat QY = Mat(8, 8, CV_8S, QYarray);
+    Mat QC = Mat(8, 8, CV_8S, QCarray);
+
+    if (qualityFactor < 50 && qualityFactor > 0)
+        scale = 5000 / qualityFactor;
+    else if (qualityFactor <= 100)
+        scale = 200 - 2 * qualityFactor;
+
+    scale = scale / 100.0;
+
+    int x;
+    cout <<"QY "<< QY << endl;
+    cout <<"QC "<< QC << endl;
+    cout <<"scale "<< scale << endl;
+    cin >> x;
+
+    vector<Mat> quantizationTable = {QY * scale, QC * scale};
+
+    return quantizationTable;
+}
+
+
+void goDct(Mat& image, bool inverse){
+    int height = image.rows;
+    int width = image.cols;
+
+    int qualityFactor = -1;
+
+    while (qualityFactor > 100 || qualityFactor <= 0) {
+        cout << "Please enter a Quality Factor. It must be in the range [1..100]" << endl;
+        cin >> qualityFactor;
+    }
+
+    for (int i = 0; i < (height/8)*8; i += 8) {
+        for (int j = 0; j < (width/8)*8; j+= 8) {
+            //get 8x8 block from image from (j,i) coordinates
+            Mat block = image(Rect(j, i, 8, 8));
+
+
+            // split in 3 planes RGB
+            vector<Mat> planes;
+            split(block, planes);
+            vector<Mat> outplanes(planes.size());
+
+            for (size_t k = 0; k < planes.size(); k++) {
+                planes[k].convertTo(planes[k], CV_64FC1);
+
+                if (inverse){
+                    vector<Mat> quantizationTable = getQuantizationTables(qualityFactor);
+                    cout << "quantizationTable: " << quantizationTable[0] << endl;
+
+                    if (k == 0) planes[0] = planes[0] * quantizationTable[0];
+                    else planes[k] = planes[k] * quantizationTable[1];
+
+                    idct(planes[k], outplanes[k]);
+                    cout << "idct -128: " << outplanes[k] << endl;
+
+                    outplanes[k].convertTo(outplanes[k], CV_8S);
+                    cout << "idct -128: " << outplanes[k] << endl;
+
+                    add(outplanes[k], 128.0, outplanes[k]);
+
+                }
+                else {
+                    subtract(planes[k], 128.0, planes[k]);
+                    //cout << "planes -128: " << planes[k] << endl;
+
+                    dct(planes[k], outplanes[k]);
+
+
+                    vector<Mat> quantizationTable = getQuantizationTables(qualityFactor);
+                    if (k == 0) outplanes[0] = outplanes[0] / quantizationTable[0];
+                    else outplanes[k] = outplanes[k] / quantizationTable[1];
+
+                    outplanes[k].convertTo(outplanes[k], CV_8S);
+
+                }
+
+            }
+
+
+            merge(outplanes, block);
         }
+
     }
-
-    error /= (*image).rows*(*image).cols;
-
-    return error;
 }
 
-// make images ready to display but not take into account the changes made.
-void getVisualDFT(Mat& image, Mat& destImage, bool dftImage){
 
-    //make 2 planes, and fill it up with zeros
-    Mat planes[2] = { Mat::zeros(image.size(), CV_32F), Mat::zeros(image.size(), CV_32F) };
-
-    //MAGNITUDE
-    // take the image and split it into real and imaginary and put both separate in planes ([0] and [1] respectively)
-    split(image, planes);
-
-    magnitude(planes[0], planes[1], planes[0]);
-    Mat magnitudeImage = planes[0];
-
-    // switch to logarithmic scale
-    magnitudeImage += Scalar::all(1);
-
-
-    // do the log only for the dft and not other images that need this function
-    if (dftImage) {
-        // => log(1 + sqrt(Re(DFT(I))^2 + Im(DFT(I))^2))
-        // this log messes up the brightness
-        log(magnitudeImage, magnitudeImage);
-    }
-
-    // crop the spectrum, if it has an odd number of rows or columns
-    magnitudeImage = magnitudeImage(Rect(0, 0, magnitudeImage.cols & -2, magnitudeImage.rows & -2));
-
-
-    // Transform the matrix with float values into a viewable image form (float between values 0 and 1).
-    normalize(magnitudeImage, magnitudeImage, 0, 1, CV_MINMAX);
-
-    destImage = magnitudeImage;
-}
-
-// make images ready to display but not take into account the changes made.
-Mat showImage(String name, Mat image, bool dftImage){
-    Mat imageShow;
-    getVisualDFT(image, imageShow, dftImage);
-    imshow(name, imageShow);
-    return imageShow;
-}
-
-// rearrange the quadrants of Fourier image so that the origin is at the image center
-// its stored again in image
-void rearrangeDFT(Mat& image){
-    int centerX = image.cols/2;
-    int centerY = image.rows/2;
-
-
-    Mat quadrant0(image, Rect(0, 0, centerX, centerY));   // Top-Left
-    Mat quadrant1(image, Rect(centerX, 0, centerX, centerY));  // Top-Right
-    Mat quadrant2(image, Rect(0, centerY, centerX, centerY));  // Bottom-Left
-    Mat quadrant3(image, Rect(centerX, centerY, centerX, centerY)); // Bottom-Right
-
-    // swap quadrants Top-Left with Bottom-Right
-    Mat tmp;
-    quadrant0.copyTo(tmp);
-    quadrant3.copyTo(quadrant0);
-    tmp.copyTo(quadrant3);
-
-    // swap quadrant Top-Right with Bottom-Left
-    quadrant1.copyTo(tmp);
-    quadrant2.copyTo(quadrant1);
-    tmp.copyTo(quadrant2);
-}
-
-void invertDFT(Mat& image, Mat& destImage){
-    Mat inverted;
-    dft(image, inverted, DFT_INVERSE | DFT_REAL_OUTPUT | DFT_SCALE);
-    destImage = inverted;
-}
-
-// take the image and make it dft in order to apply filters later
-void readyDFT(Mat& image, Mat& destImage){
-
-    Mat padded;
-    //expand image to an exponential of 2
-    // if size it is an exponential of 2 it is a lot quicker to process
-    int m = getOptimalDFTSize( image.rows );
-    int n = getOptimalDFTSize( image.cols );
-
-    // to do that we need to add 0s to the extra pixels
-    copyMakeBorder(image, padded, 0, m - image.rows, 0, n - image.cols, BORDER_CONSTANT, Scalar::all(0));
-
-
-    Mat planes[] = {Mat_<float>(padded), Mat::zeros(padded.size(), CV_32F)};
-
-    Mat complexImage;
-
-    // Add to the expanded image another plane with zeros
-    merge(planes, 2, complexImage);
-
-    // this way the result may fit in the source matrix
-    dft(complexImage, complexImage);
-
-    destImage = complexImage;
-}
-
-Mat createDFT(Mat& image) {
-	Mat dftImage;
-    readyDFT(image, dftImage);
-
-    rearrangeDFT(dftImage);
-
-    showImage("spectrum magnitude", dftImage, true);
-
-
-    rearrangeDFT(dftImage);
-
-
-    Mat inverted;
-    invertDFT(dftImage, inverted);
-
-    return inverted;
-
-}
 
 int main(int argc, char** argv) {
 	Mat original;
-	//Mat ppm;
-	int x;
+    Mat yCbCrImage;
+    Mat iYCbCrImage;
+    Mat dctImage;
+    Mat idctImage;
+	int x;      // needed for Visual Studio
+    string fileLocation = "../Compression/Images/1.ppm";
 
 
 	// Read the file
-	//original = imread("./Images/PandaOriginal.bmp", CV_LOAD_IMAGE_GRAYSCALE);
-	original = imread("./Images/1.ppm", CV_LOAD_IMAGE_GRAYSCALE);
-
-	//ppm = imread("../PandaNoise.bmp", CV_LOAD_IMAGE_GRAYSCALE);
+    cout << "Reading file: " << fileLocation << endl;
+	original = imread(fileLocation, CV_LOAD_IMAGE_COLOR);
 
 
-	if (!original.data) {                              // Check for invalid input
+    // Check for invalid input
+	if (!original.data) {
 		cout << "Could not open or find the image" << endl;
-		cin >> x;
+		cin >> x;       // needed for Visual Studio
 		return -1;
 	}
 
 
-	_ppm ppm;
+    // turn into YCbCr:
+    cout << "Turning into YCbCr" << endl;
+    cvtColor(original, yCbCrImage, CV_BGR2YCrCb);
 
-	if (ppm.load_ppm("./Images/1.ppm") == -1) {
-		cout << "!!! Error while loading image" << endl << endl;
-		cin >> x;
-
-		return 1;
-	}
-
-
-	cout << "Image Details:" << endl << endl;
-	cout << "Height: " << ppm.get_image_height() << endl;
-	cout << "Width: " << ppm.get_image_width() << endl;
-	cout << "Depth: " << ppm.get_image_depth() << endl << endl;
-
-	cout << "Changing pixel values..." << endl;
-
-	int b, g, r; //define some pixel variables 
-
-	for (int x = 0; x<ppm.get_image_width() - 1; x++)
-	{
-		for (int y = 0; y<ppm.get_image_height() - 1; y++) //loop to lighten an image
-		{
-			r = ppm.get_pixel(x, y, RED);
-			g = ppm.get_pixel(x, y, GREEN);
-			b = ppm.get_pixel(x, y, BLUE);
-
-			if (r == -1 || g == -1 || b == -1) //check for error codes
-				cout << "Error at pixel " << (y*ppm.get_image_width() + x) * 3 << endl; //get pixel position
-
-			if (g<235 && r<235 && b<235) //check that an overflow can't happen
-			{
-				ppm.set_pixel(x, y, GREEN, g + 20);
-				ppm.set_pixel(x, y, BLUE, b + 20);
-				ppm.set_pixel(x, y, RED, r + 20);
-			}
-		}
-	}
-
-	cout << "Saving..." << endl;
-
-	if (ppm.save_ppm("./Images/1-lighter.ppm") != 0) //check for saving errors
-		cout << "!!! Error while saving" << endl;
-
-	cout << "DONE!" << endl << endl;
-	cin >> x;
+    //split the image in the 3 planes RGB
+    //split(modified, planes);
+    cout << "Creating DCT" << endl;
+    dctImage = yCbCrImage.clone();
+    goDct(dctImage, 0);
 
 
-	/*
+    cout << "Inverting DCT" << endl;
+    idctImage = dctImage.clone();
+    goDct(idctImage, 1);
 
-    namedWindow("ORIGINAL", CV_WINDOW_AUTOSIZE);// Create a window for display.
-    //namedWindow("NOISY", CV_WINDOW_AUTOSIZE);// Create a window for display.
+    cout << "Inverting YCrCb" << endl;
+    cvtColor(idctImage, iYCbCrImage, CV_YCrCb2BGR);
 
+
+    cout << "Done" << endl;
+
+    // Create a window for display.
+    namedWindow("ORIGINAL", CV_WINDOW_AUTOSIZE);
+    namedWindow("YCbCr", CV_WINDOW_AUTOSIZE);
+    namedWindow("DCT", CV_WINDOW_AUTOSIZE);
+    namedWindow("Inverted DCTImage", CV_WINDOW_AUTOSIZE);
     imshow("ORIGINAL", original);
-    //imshow("NOISY", ppm);
+    imshow("YCbCr", yCbCrImage);
+    imshow("DCT", dctImage);
+    imshow("Inverted DCTImage", idctImage);
+    imshow("Inverted YCbCr", iYCbCrImage);
 
+    //cout << iYCbCrImage << endl;
 
     // put each image next to each other
-    moveWindow("ORIGINAL", 0, 0);            // put window in certain position in the screen
-    //moveWindow("NOISY", 0, ppm.rows+50);            // put window in certain position in the screen
+    moveWindow("ORIGINAL", 0, 0);
+    moveWindow("DCT", 50, 0);
+    moveWindow("Inverted DCTImage", 100, 0);
 
-
-    //make images blurry taking random noise away
-
-
-
-    Mat modified7 = createDFT(original);
-    modified7 = showImage("DFT", modified7, false);
 
     //normalize(modified7, modified7, 0, 1, CV_MINMAX);
     //normalize(originalBnW, originalBnW, 0, 1, CV_MINMAX);
 
-    //Mat modified8(modified7.rows, modified7.cols, CV_8UC4, modified7.data);
-    //imwrite("DFT2.bmp", modified7);
 
-    //cout << "Noisy: " << average_errorBnW(&original, &ppm) << endl;
+    //save image
+    //imwrite("DFT2.ppm", modified7);
+
+    //cout << "Noisy: " << average_error(&original, &ppm) << endl;
 
 
-    //infinite loop
+
+
+    //infinite Exit loop
     while (1) {
         // if pressed ESC it closes the program
         if (waitKeyEx(10) == 27) {
@@ -282,5 +250,5 @@ int main(int argc, char** argv) {
         }
     }
 
-	*/
+
 }
