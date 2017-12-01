@@ -78,8 +78,8 @@ vector<Mat> getQuantizationTables(int qualityFactor){
                     {99, 99, 99, 99, 99, 99, 99, 99},
                     {99, 99, 99, 99, 99, 99, 99, 99}};
 
-    Mat QY = Mat(8, 8, CV_8S, QYarray);
-    Mat QC = Mat(8, 8, CV_8S, QCarray);
+    Mat QY = Mat(8, 8, CV_32S, QYarray);
+    Mat QC = Mat(8, 8, CV_32S, QCarray);
 
     if (qualityFactor < 50 && qualityFactor > 0)
         scale = 5000 / qualityFactor;
@@ -88,13 +88,10 @@ vector<Mat> getQuantizationTables(int qualityFactor){
 
     scale = scale / 100.0;
 
-    int x;
-    cout <<"QY "<< QY << endl;
-    cout <<"QC "<< QC << endl;
-    cout <<"scale "<< scale << endl;
-    cin >> x;
+	multiply(QY, scale, QY);
+	multiply(QC, scale, QC);
 
-    vector<Mat> quantizationTable = {QY * scale, QC * scale};
+    vector<Mat> quantizationTable = {QY, QC};
 
     return quantizationTable;
 }
@@ -105,6 +102,8 @@ void goDct(Mat& image, bool inverse){
     int width = image.cols;
 
     int qualityFactor = -1;
+
+	int x;
 
     while (qualityFactor > 100 || qualityFactor <= 0) {
         cout << "Please enter a Quality Factor. It must be in the range [1..100]" << endl;
@@ -128,9 +127,10 @@ void goDct(Mat& image, bool inverse){
                 if (inverse){
                     vector<Mat> quantizationTable = getQuantizationTables(qualityFactor);
                     cout << "quantizationTable: " << quantizationTable[0] << endl;
+					cin >> x;
 
-                    if (k == 0) planes[0] = planes[0] * quantizationTable[0];
-                    else planes[k] = planes[k] * quantizationTable[1];
+                    if (k == 0) multiply(planes[0], quantizationTable[0], planes[0]);
+                    else multiply(planes[k], quantizationTable[k], planes[1]);
 
                     idct(planes[k], outplanes[k]);
                     cout << "idct -128: " << outplanes[k] << endl;

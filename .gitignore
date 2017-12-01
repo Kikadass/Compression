@@ -54,3 +54,4 @@ Compression/cmake-build-debug/CMakeFiles/feature_tests.cxx
 *.pdb
 x64/Debug/Compression.exe
 x64/Debug/Compression.ilk
+Compression/x64/Debug/main.obj.enc
