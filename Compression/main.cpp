@@ -9,7 +9,23 @@
 using namespace cv;
 using namespace std;
 
+double QYarray[8][8] =  {{16, 11, 10, 16, 24, 40, 51, 61},
+                      {12, 12, 14, 19, 26, 48, 60, 55},
+                      {14, 13, 16, 24, 40, 57, 69, 56},
+                      {14, 17, 22, 29, 51, 87, 80, 62},
+                      {18, 22, 37, 56, 68, 109, 103, 77},
+                      {24, 35, 55, 64, 81, 104, 113, 92},
+                      {49, 64, 78, 87, 103, 121, 120, 101},
+                      {72, 92, 95, 98, 112, 100, 103, 99}};
 
+double QCarray[8][8]=  {{17, 18, 24, 47, 99, 99, 99, 99},
+                     {18, 21, 26, 66, 99, 99, 99, 99},
+                     {24, 26, 56, 99, 99, 99, 99, 99},
+                     {47, 66, 99, 99, 99, 99, 99, 99},
+                     {99, 99, 99, 99, 99, 99, 99, 99},
+                     {99, 99, 99, 99, 99, 99, 99, 99},
+                     {99, 99, 99, 99, 99, 99, 99, 99},
+                     {99, 99, 99, 99, 99, 99, 99, 99}};
 
 // distance between point 1 and point 2
 double distance(double x1, double y1, double x2, double y2) {
@@ -56,30 +72,11 @@ float average_error(Mat* originalImage, Mat* image){
     return (Rerror+Gerror+Berror)/3;
 }
 
-vector<Mat> getQuantizationTables(int qualityFactor){
+void getQuantizationTables(int qualityFactor, vector<Mat> &quantizationTables){
     double scale;
 
-
-    int QYarray[8][8] =  {{16, 11, 10, 16, 24, 40, 51, 61},
-                     {12, 12, 14, 19, 26, 48, 60, 55},
-                     {14, 13, 16, 24, 40, 57, 69, 56},
-                     {14, 17, 22, 29, 51, 87, 80, 62},
-                     {18, 22, 37, 56, 68, 109, 103, 77},
-                     {24, 35, 55, 64, 81, 104, 113, 92},
-                     {49, 64, 78, 87, 103, 121, 120, 101},
-                     {72, 92, 95, 98, 112, 100, 103, 99}};
-
-    int QCarray[8][8]=  {{17, 18, 24, 47, 99, 99, 99, 99},
-                    {18, 21, 26, 66, 99, 99, 99, 99},
-                    {24, 26, 56, 99, 99, 99, 99, 99},
-                    {47, 66, 99, 99, 99, 99, 99, 99},
-                    {99, 99, 99, 99, 99, 99, 99, 99},
-                    {99, 99, 99, 99, 99, 99, 99, 99},
-                    {99, 99, 99, 99, 99, 99, 99, 99},
-                    {99, 99, 99, 99, 99, 99, 99, 99}};
-
-    Mat QY = Mat(8, 8, CV_32S, QYarray);
-    Mat QC = Mat(8, 8, CV_32S, QCarray);
+    Mat QY = Mat(8, 8, CV_64FC1, &QYarray);
+    Mat QC = Mat(8, 8, CV_64FC1, &QCarray);
 
     if (qualityFactor < 50 && qualityFactor > 0)
         scale = 5000 / qualityFactor;
@@ -91,9 +88,7 @@ vector<Mat> getQuantizationTables(int qualityFactor){
 	multiply(QY, scale, QY);
 	multiply(QC, scale, QC);
 
-    vector<Mat> quantizationTable = {QY, QC};
-
-    return quantizationTable;
+    quantizationTables = {QY, QC};
 }
 
 
@@ -103,66 +98,69 @@ void goDct(Mat& image, bool inverse){
 
     int qualityFactor = -1;
 
-	int x;
-
     while (qualityFactor > 100 || qualityFactor <= 0) {
         cout << "Please enter a Quality Factor. It must be in the range [1..100]" << endl;
         cin >> qualityFactor;
     }
 
+
+    // split in 3 planes RGB
+    vector<Mat> planes;
+    split(image, planes);
+
+
     for (int i = 0; i < (height/8)*8; i += 8) {
         for (int j = 0; j < (width/8)*8; j+= 8) {
-            //get 8x8 block from image from (j,i) coordinates
-            Mat block = image(Rect(j, i, 8, 8));
-
-
-            // split in 3 planes RGB
-            vector<Mat> planes;
-            split(block, planes);
-            vector<Mat> outplanes(planes.size());
-
             for (size_t k = 0; k < planes.size(); k++) {
                 planes[k].convertTo(planes[k], CV_64FC1);
 
+
+                //get 8x8 block from image from (j,i) coordinates
+                Mat block = planes[k](Rect(j, i, 8, 8));
+
+                block.convertTo(block, CV_64FC1);
+
+
+                Mat outblock(block);
+
                 if (inverse){
-                    vector<Mat> quantizationTable = getQuantizationTables(qualityFactor);
-                    cout << "quantizationTable: " << quantizationTable[0] << endl;
-					cin >> x;
+                    vector<Mat> quantizationTables;
+                    getQuantizationTables(qualityFactor, quantizationTables);
 
-                    if (k == 0) multiply(planes[0], quantizationTable[0], planes[0]);
-                    else multiply(planes[k], quantizationTable[k], planes[1]);
+                    //if (k == 0) multiply(block, quantizationTables[0], block);
+                    //else multiply(block, quantizationTables[1], block);
 
-                    idct(planes[k], outplanes[k]);
-                    cout << "idct -128: " << outplanes[k] << endl;
+                    idct(outblock, outblock);
 
-                    outplanes[k].convertTo(outplanes[k], CV_8S);
-                    cout << "idct -128: " << outplanes[k] << endl;
 
-                    add(outplanes[k], 128.0, outplanes[k]);
+                    outblock.convertTo(outblock, CV_8S);
+
+                    add(outblock, 128, outblock);
+
+                    outblock.copyTo(planes[k](Rect(j, i, 8, 8)));
+                    if (j == 0 && i == 0 && k == 0) cout << "outblock3234: " << outblock << endl;
 
                 }
                 else {
-                    subtract(planes[k], 128.0, planes[k]);
-                    //cout << "planes -128: " << planes[k] << endl;
 
-                    dct(planes[k], outplanes[k]);
+                    if (j == 0 && i == 0 && k == 0) cout << "block: " << block << endl;
+                    subtract(block, 128.0, block);
 
+                    dct(block, outblock);
 
-                    vector<Mat> quantizationTable = getQuantizationTables(qualityFactor);
-                    if (k == 0) outplanes[0] = outplanes[0] / quantizationTable[0];
-                    else outplanes[k] = outplanes[k] / quantizationTable[1];
+                    vector<Mat> quantizationTables;
+                    getQuantizationTables(qualityFactor, quantizationTables);
 
-                    outplanes[k].convertTo(outplanes[k], CV_8S);
+                    //if (k == 0) divide(outblock, quantizationTables[0], outblock);
+                    //else divide(outblock, quantizationTables[1], outblock);
 
+                    outblock.copyTo(planes[k](Rect(j, i, 8, 8)));
                 }
-
             }
-
-
-            merge(outplanes, block);
         }
-
     }
+
+    merge(planes, image);
 }
 
 
@@ -206,6 +204,7 @@ int main(int argc, char** argv) {
     goDct(idctImage, 1);
 
     cout << "Inverting YCrCb" << endl;
+    idctImage.convertTo(idctImage, CV_8U);
     cvtColor(idctImage, iYCbCrImage, CV_YCrCb2BGR);
 
 
@@ -220,7 +219,7 @@ int main(int argc, char** argv) {
     imshow("YCbCr", yCbCrImage);
     imshow("DCT", dctImage);
     imshow("Inverted DCTImage", idctImage);
-    imshow("Inverted YCbCr", iYCbCrImage);
+    imshow("FINISHED", iYCbCrImage);
 
     //cout << iYCbCrImage << endl;
 
