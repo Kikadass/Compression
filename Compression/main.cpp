@@ -9,6 +9,8 @@
 using namespace cv;
 using namespace std;
 
+bool debug = false;
+
 double QYarray[8][8] =  {{16, 11, 10, 16, 24, 40, 51, 61},
                       {12, 12, 14, 19, 26, 48, 60, 55},
                       {14, 13, 16, 24, 40, 57, 69, 56},
@@ -78,17 +80,20 @@ void getQuantizationTables(int qualityFactor, vector<Mat> &quantizationTables){
     Mat QY = Mat(8, 8, CV_64FC1, &QYarray);
     Mat QC = Mat(8, 8, CV_64FC1, &QCarray);
 
-    if (qualityFactor < 50 && qualityFactor > 0)
-        scale = 5000 / qualityFactor;
-    else if (qualityFactor <= 100)
-        scale = 200 - 2 * qualityFactor;
+
+    scale = 200 - 2 * qualityFactor;
 
     scale = scale / 100.0;
+
+    cout << "scale: " << scale << endl;
 
 	multiply(QY, scale, QY);
 	multiply(QC, scale, QC);
 
+    cout << "quantization: " << QY << endl;
+    cout << "quantization: " << QC << endl;
     quantizationTables = {QY, QC};
+
 }
 
 
@@ -102,6 +107,9 @@ void goDct(Mat& image, bool inverse){
         cout << "Please enter a Quality Factor. It must be in the range [1..100]" << endl;
         cin >> qualityFactor;
     }
+
+    vector<Mat> quantizationTables;
+    getQuantizationTables(qualityFactor, quantizationTables);
 
 
     // split in 3 planes RGB
@@ -124,37 +132,39 @@ void goDct(Mat& image, bool inverse){
                 Mat outblock(block);
 
                 if (inverse){
-                    vector<Mat> quantizationTables;
-                    getQuantizationTables(qualityFactor, quantizationTables);
 
-                    //if (k == 0) multiply(block, quantizationTables[0], block);
-                    //else multiply(block, quantizationTables[1], block);
+
+                    if (k == 0) multiply(block, quantizationTables[0], block);
+                    else multiply(block, quantizationTables[1], block);
+                    if (j == 0 && i == 0 && debug) cout << "outblock6453: " << outblock << endl;
 
                     idct(outblock, outblock);
+                    if (j == 0 && i == 0 && debug) cout << "outblock6452: " << outblock << endl;
 
-
-                    outblock.convertTo(outblock, CV_8S);
+                    if (j == 0 && i == 0 && debug) cout << "outblock6451: " << outblock << endl;
 
                     add(outblock, 128, outblock);
+                    if (j == 0 && i == 0 && debug) cout << "outblock+218: " << outblock << endl;
 
                     outblock.copyTo(planes[k](Rect(j, i, 8, 8)));
-                    if (j == 0 && i == 0 && k == 0) cout << "outblock3234: " << outblock << endl;
+                    if (j == 0 && i == 0) cout << "outblock: " << outblock << endl;
 
                 }
                 else {
 
-                    if (j == 0 && i == 0 && k == 0) cout << "block: " << block << endl;
-                    subtract(block, 128.0, block);
+                    if (j == 0 && i == 0) cout << "block: " << block << endl;
+                    subtract(block, 128, block);
+                    if (j == 0 && i == 0 && debug) cout << "block132: " << block << endl;
 
                     dct(block, outblock);
 
-                    vector<Mat> quantizationTables;
-                    getQuantizationTables(qualityFactor, quantizationTables);
-
-                    //if (k == 0) divide(outblock, quantizationTables[0], outblock);
-                    //else divide(outblock, quantizationTables[1], outblock);
+                    if (k == 0) divide(outblock, quantizationTables[0], outblock);
+                    else divide(outblock, quantizationTables[1], outblock);
 
                     outblock.copyTo(planes[k](Rect(j, i, 8, 8)));
+                    if (j == 0 && i == 0 && debug) cout << "outblock312: " << outblock << endl;
+                    if (j == 0 && i == 0 && debug) cout << "outblock312: " << planes[k](Rect(j, i, 8, 8)) << endl;
+
                 }
             }
         }
@@ -192,8 +202,6 @@ int main(int argc, char** argv) {
     cout << "Turning into YCbCr" << endl;
     cvtColor(original, yCbCrImage, CV_BGR2YCrCb);
 
-    //split the image in the 3 planes RGB
-    //split(modified, planes);
     cout << "Creating DCT" << endl;
     dctImage = yCbCrImage.clone();
     goDct(dctImage, 0);
@@ -248,6 +256,4 @@ int main(int argc, char** argv) {
             return 0;
         }
     }
-
-
 }
