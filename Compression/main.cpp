@@ -8,7 +8,7 @@
 
 
 
-bool debug = true;
+bool debug = false;
 
 double QYarray[8][8] =  {{16, 11, 10, 16, 24, 40, 51, 61},
                          {12, 12, 14, 19, 26, 48, 60, 55},

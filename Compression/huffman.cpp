@@ -19,7 +19,7 @@
 
 using namespace std;
 using namespace cv;
-bool debug = false;
+bool hDebug = false;
 
 struct NodeCmp {
     bool operator()(const FNode* lhs, const FNode* rhs) const {
@@ -37,7 +37,7 @@ FNode* buildTree(const map<int, int> &frequencies) {
         int value = i->first;
         int freq = i->second;
 
-        if (debug) {
+        if (hDebug) {
             cout << "value: " << value << endl;
             cout << "freq: " << freq << endl;
         }
@@ -117,7 +117,7 @@ void huffman(Mat imageMatrix) {
     delete tree;
 
     // go through the huffman map to print results
-    if (debug) {
+    if (hDebug) {
         for (map<int, vector<bool>>::const_iterator it = hMap.begin(); it != hMap.end(); ++it) {
             cout << it->first << " ";
             copy(it->second.begin(), it->second.end(),
