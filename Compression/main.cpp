@@ -2,32 +2,33 @@
 #include <opencv2/imgcodecs.hpp>
 #include <opencv2/highgui/highgui.hpp>
 
-#include <iostream>
-#include "PPM.h"
 #include <opencv/cv.hpp>
+#include "huffman.cpp"
 
-using namespace cv;
-using namespace std;
 
-bool debug = false;
+
+
+bool debug = true;
 
 double QYarray[8][8] =  {{16, 11, 10, 16, 24, 40, 51, 61},
-                      {12, 12, 14, 19, 26, 48, 60, 55},
-                      {14, 13, 16, 24, 40, 57, 69, 56},
-                      {14, 17, 22, 29, 51, 87, 80, 62},
-                      {18, 22, 37, 56, 68, 109, 103, 77},
-                      {24, 35, 55, 64, 81, 104, 113, 92},
-                      {49, 64, 78, 87, 103, 121, 120, 101},
-                      {72, 92, 95, 98, 112, 100, 103, 99}};
+                         {12, 12, 14, 19, 26, 48, 60, 55},
+                         {14, 13, 16, 24, 40, 57, 69, 56},
+                         {14, 17, 22, 29, 51, 87, 80, 62},
+                         {18, 22, 37, 56, 68, 109, 103, 77},
+                         {24, 35, 55, 64, 81, 104, 113, 92},
+                         {49, 64, 78, 87, 103, 121, 120, 101},
+                         {72, 92, 95, 98, 112, 100, 103, 99}};
 
 double QCarray[8][8]=  {{17, 18, 24, 47, 99, 99, 99, 99},
-                     {18, 21, 26, 66, 99, 99, 99, 99},
-                     {24, 26, 56, 99, 99, 99, 99, 99},
-                     {47, 66, 99, 99, 99, 99, 99, 99},
-                     {99, 99, 99, 99, 99, 99, 99, 99},
-                     {99, 99, 99, 99, 99, 99, 99, 99},
-                     {99, 99, 99, 99, 99, 99, 99, 99},
-                     {99, 99, 99, 99, 99, 99, 99, 99}};
+                        {18, 21, 26, 66, 99, 99, 99, 99},
+                        {24, 26, 56, 99, 99, 99, 99, 99},
+                        {47, 66, 99, 99, 99, 99, 99, 99},
+                        {99, 99, 99, 99, 99, 99, 99, 99},
+                        {99, 99, 99, 99, 99, 99, 99, 99},
+                        {99, 99, 99, 99, 99, 99, 99, 99},
+                        {99, 99, 99, 99, 99, 99, 99, 99}};
+
+
 
 // distance between point 1 and point 2
 double distance(double x1, double y1, double x2, double y2) {
@@ -83,6 +84,8 @@ void getQuantizationTables(int qualityFactor, vector<Mat> &quantizationTables){
 
     scale = 200 - 2 * qualityFactor;
 
+
+
     scale = scale / 100.0;
 
     cout << "scale: " << scale << endl;
@@ -132,7 +135,7 @@ void goDct(Mat& image, bool inverse){
                 Mat outblock(block);
 
                 if (inverse){
-
+                    subtract(block, 128, block);
 
                     if (k == 0) multiply(block, quantizationTables[0], block);
                     else multiply(block, quantizationTables[1], block);
@@ -160,6 +163,10 @@ void goDct(Mat& image, bool inverse){
 
                     if (k == 0) divide(outblock, quantizationTables[0], outblock);
                     else divide(outblock, quantizationTables[1], outblock);
+
+                    add(outblock, 128, outblock);
+                    outblock.convertTo(outblock, CV_8U);
+
 
                     outblock.copyTo(planes[k](Rect(j, i, 8, 8)));
                     if (j == 0 && i == 0 && debug) cout << "outblock312: " << outblock << endl;
@@ -206,6 +213,8 @@ int main(int argc, char** argv) {
     dctImage = yCbCrImage.clone();
     goDct(dctImage, 0);
 
+    cout << "Huffman: " << endl;
+    huffman(dctImage);
 
     cout << "Inverting DCT" << endl;
     idctImage = dctImage.clone();
@@ -242,7 +251,7 @@ int main(int argc, char** argv) {
 
 
     //save image
-    //imwrite("DFT2.ppm", modified7);
+    //imwrite("DFT2.ppm", iYCbCrImage);
 
     //cout << "Noisy: " << average_error(&original, &ppm) << endl;
 
