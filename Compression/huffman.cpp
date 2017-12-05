@@ -75,26 +75,23 @@ void generateCodes(const FNode* FNode, const vector<bool>& hCode, map<int, vecto
     else if (const Parent* parent = dynamic_cast<const Parent*>(FNode)) {
         vector<bool> leftPrefix = hCode;
         leftPrefix.push_back(false);
-        GenerateCodes(parent->left, leftPrefix, hMap);
+        generateCodes(parent->left, leftPrefix, hMap);
 
         vector<bool> rightPrefix = hCode;
         rightPrefix.push_back(true);
-        GenerateCodes(parent->right, rightPrefix, hMap);
+        generateCodes(parent->right, rightPrefix, hMap);
     }
 }
 
 
 
-void huffman(Mat imageMatrix) {
+map<int, vector<bool>> huffman(Mat imageMatrix) {
     // map of pixel values and how many times they appear
     map<int, int> frequencies;
 
 // split in 3 planes RGB
     vector<Mat> planes;
     split(imageMatrix, planes);
-
-    cout << imageMatrix.rows << endl;
-    cout << imageMatrix.cols << endl;
 
     for (int i = 0; i < imageMatrix.rows; i++) {
         for (int j = 0; j < imageMatrix.cols; j++) {
