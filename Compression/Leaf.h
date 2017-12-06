@@ -6,13 +6,14 @@
 #define COMPRESSION_LEAF_H
 
 #include "FNode.h"
+#include <cstdint>
 
 
 class Leaf : public FNode {
 public:
     int color;
 
-    Leaf(int freq, int c);
+    Leaf(int freq, uint8_t c);
 };
 
 

@@ -7,7 +7,6 @@
 
 
 
-
 bool debug = false;
 
 double QYarray[8][8] =  {{16, 11, 10, 16, 24, 40, 51, 61},
@@ -213,8 +212,12 @@ int main(int argc, char** argv) {
     dctImage = yCbCrImage.clone();
     goDct(dctImage, 0);
 
-    cout << "Huffman: " << endl;
-    huffman(dctImage);
+
+    writeTo("../Compression/Images/compressedImage.kike", dctImage);
+    readFrom("../Compression/Images/compressedImage.kike");
+
+    cin >> x;
+
 
     cout << "Inverting DCT" << endl;
     idctImage = dctImage.clone();
