@@ -134,6 +134,8 @@ void goDct(Mat& image, bool inverse){
                 Mat outblock(block);
 
                 if (inverse){
+                    if (j == 0 && i == 0) cout << "block: " << block << endl;
+
                     subtract(block, 128, block);
 
                     if (k == 0) multiply(block, quantizationTables[0], block);
@@ -169,7 +171,7 @@ void goDct(Mat& image, bool inverse){
 
                     outblock.copyTo(planes[k](Rect(j, i, 8, 8)));
                     if (j == 0 && i == 0 && debug) cout << "outblock312: " << outblock << endl;
-                    if (j == 0 && i == 0 && debug) cout << "outblock312: " << planes[k](Rect(j, i, 8, 8)) << endl;
+                    if (j == 0 && i == 0) cout << "outblock312: " << planes[k](Rect(j, i, 8, 8)) << endl;
 
                 }
             }
@@ -214,13 +216,12 @@ int main(int argc, char** argv) {
 
 
     writeTo("../Compression/Images/compressedImage.kike", dctImage);
-    readFrom("../Compression/Images/compressedImage.kike");
-
-    cin >> x;
+    Mat image = readFrom("../Compression/Images/compressedImage.kike");
+    imshow("image", image);
 
 
     cout << "Inverting DCT" << endl;
-    idctImage = dctImage.clone();
+    idctImage = image.clone();
     goDct(idctImage, 1);
 
     cout << "Inverting YCrCb" << endl;

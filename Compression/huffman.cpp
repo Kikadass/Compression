@@ -172,9 +172,6 @@ void writeTo(string location, Mat image) {
 
     ofstream ofile(location, ios::binary);
 
-    int counter = 0;
-    int max = 0;
-
     for (map<uint8_t, vector<bool>>::iterator i = hMap.begin(); i != hMap.end(); ++i) {
         ofile.write(reinterpret_cast<const char *>(&i->first), sizeof(i->first)); // null terminated string
 
@@ -190,16 +187,30 @@ void writeTo(string location, Mat image) {
         writeBitCodesHeader(code, ofile);
     }
 
-    int separator = 0;
-    ofile.write(reinterpret_cast<const char *>(&separator), sizeof(separator));
+    // write separator and its size size
+    unsigned short separator = 255;
+    unsigned char c = static_cast<unsigned char>( separator ); // simplest -- no checks for 8 bit bitsets
+    ofile.write(reinterpret_cast<const char *>(&c), sizeof(c));
+    ofile.write(reinterpret_cast<const char *>(&c), sizeof(c));
+    cout << "separator: " << separator << " size: " << sizeof(c) << endl;
 
-    counter = 0;
+
+    //write the amount of rows and cols
+    unsigned short rows = image.rows;
+    unsigned short cols = image.cols;
+    ofile.write(reinterpret_cast<const char *>(&rows), sizeof(rows)); // null terminated string
+    ofile.write(reinterpret_cast<const char *>(&cols), sizeof(cols)); // null terminated string
+
+
+    cout << "rows: " << rows << " size: " << sizeof(rows) << endl;
+    cout << "cols: " << cols << " size: " << sizeof(cols) << endl;
 
     // split in 3 planes RGB
     vector<Mat> planes;
     split(image, planes);
     int current_bit = 0;
     bitset< 8 > code1;
+
 
     for (int i = 0; i < image.rows; i++) {
         for (int j = 0; j < image.cols; j++) {
@@ -232,26 +243,7 @@ void writeTo(string location, Mat image) {
 }
 
 
-using byte = unsigned char ;
-using bits_in_byte = std::bitset<8> ;
-
-
-void readFrom2(string location){
-    cout << "Reading!" << endl;
-    ifstream input(location, ios::binary);
-    string bitstring ;
-    char c ;
-    int x;
-
-    while( input.get(c) ) { // read byte by byte
-        bitstring += bits_in_byte(byte(c)).to_string();
-        cout << bitstring << endl;
-        cin >> x;
-    }
-}
-
-
-void readFrom(string location) {
+Mat readFrom(string location) {
     cout << "Reading!" << endl;
     ifstream input(location, ios::binary);
     vector<int> buffer((istreambuf_iterator<char>(input)),
@@ -264,102 +256,146 @@ void readFrom(string location) {
 
     map<vector<bool>, int> iHMap;
 
-    int i = 0;
+    int j = 0;
     bool header = true;
-    for (int j = 0; j < buffer.size(); i++) {
+    int maxSize = 0;
+    while (header) {
+        if (buffer[j] < 0) {
+            buffer[j] += 256;
+        }
 
-        if (header) {
-            if (buffer[j] == 0){
-                header = false;
-                continue;
-            }
-
-            if (buffer[j] < 0) {
-                buffer[j] += 256;
-            }
-
-            int value = buffer[j];
-            cout << "value: " << value << endl;
-            j++;
+        int value = buffer[j];
+        cout << "value: " << value << endl;
+        j++;
 
 
-            int size = buffer[j];
-            j++;
+        int size = buffer[j];
+        if (size == -1) {
+            header = false;
+            continue;
+        }
+        if (size > maxSize) maxSize = size;
+
+        j++;
 
 
-            vector<bool> code;
-            for (int k = 0; k < size; k++){
-                bitset< 8 > bitSetCode = bitset< 8 >( buffer[j]);
+        vector<bool> code;
+        for (int k = 0; k < size; k++) {
+            bitset<8> bitSetCode = bitset<8>(buffer[j]);
 //                cout << "boolean " << bitSetCode << endl;
 
-                // 1 is the only code that does not have 0s in the beggining
-                // and 1s are added in the beggining of the codes in order to make 1byte
-                if (buffer[j] == -1 && size == 1){
-                    code.push_back(1);
+            // 1 is the only code that does not have 0s in the beggining
+            // and 1s are added in the beggining of the codes in order to make 1byte
+            if (buffer[j] == -1 && size == 1) {
+                code.push_back(1);
+            } else {
+                bool extraOnes = true;
+                if (k != 0) {
+                    extraOnes = false;
                 }
-                else {
-                    bool extraOnes = true;
-                    if (k != 0){
+
+                for (int bit = 7; bit > -1; bit--) {
+                    if ((bitSetCode[bit] == 0 && extraOnes) || !extraOnes) {
+                        code.push_back(bitSetCode[bit]);
                         extraOnes = false;
                     }
-
-                    for (int bit = 7; bit > -1; bit--) {
-                        if ((bitSetCode[bit] == 0 && extraOnes) || !extraOnes) {
-                            code.push_back(bitSetCode[bit]);
-                            extraOnes = false;
-                        }
-                    }
                 }
-
-                j++;
-
             }
-            iHMap[code] = value;
 
-
-            cout << "code: ";
-            for (bool b : code) {
-                cout << b;
-            }
-            cout << endl;
-
+            j++;
 
         }
-        else{
-            cin >> x;
-            vector<bool> code;
-            while ((buffer[j] == 0 || buffer[j] == 1) && j < buffer.size()) {
-                code.push_back((bool) buffer[j]);
+        iHMap[code] = value;
 
-                int value = iHMap.find(code)->second;
-                cout << "code: ";
-                for (bool b : code) {
-                     cout << b;
-                }
-                cout << endl << "value: " << value << endl;
 
-                int x;
-                cin >> x;
-                if (value < 256){
+        cout << "code: ";
+        for (bool b : code) {
+            cout << b;
+        }
+        cout << endl;
+    }
 
-                }
-                //cout << code.back();
-                j++;
-            }
-
+    j++;
+    int rows;
+    int cols;
+    for (int i = 0; i < 2; i++) {
+        bitset<16> bitSetCode = bitset<16>(buffer[j]);
+        j++;
+        bitset<8> bitSetCode2 = bitset<8>(buffer[j]);
+        j++;
+        for (int i = 0; i < 8; i++) {
+            bitSetCode[8 + i] = bitSetCode2[i];
         }
 
-
+        if (i == 0) rows = bitSetCode.to_ulong();
+        else cols = bitSetCode.to_ulong();
     }
 
 
+    cout << "rows: " << rows << endl;
+    cout << "cols: " << cols << endl;
+    short planes[3][rows][cols];
+    memset(planes, 0, 3 * rows * cols * sizeof(short));
+
+
     vector<bool> code;
-    code.push_back(1);
-    cout << iHMap.find(code)->second << endl;
+    int i = 7;
+    int p = 0;
+    int r = 0;
+    int c = 0;
+    while (j < buffer.size()) {
+        bitset<8> bitSetCode = bitset<8>(buffer[j]);
 
-    // do the rest of the reading
+        code.push_back(bitSetCode[i]);
+        i--;
+        if (i < 0) {
+            i = 7;
+            j++;
+        }
 
+        int value = iHMap.find(code)->second;
+        if (value < 255) {
+            planes[p][r][c] = value;
+            p++;
 
+            if (p == 3) {
+                p = 0;
+                c++;
+            }
+            if (r == rows) {
+                r = 0;
+            }
+            if (c == cols) {
+                r++;
+                c = 0;
+            }
 
+            code.erase(code.begin(), code.end());
+        }
+    }
+
+    for (p = 0; p < 3; p++) {
+        cout << "PLANE" << endl << endl;
+        for (r = 0; r < 8; r++) {
+            for (c = 0; c < 8; c++) {
+                cout << planes[p][r][c] << " ";
+            }
+            cout << endl;
+        }
+    }
+
+    vector<Mat> planesMat;
+    planesMat.push_back(Mat(rows, cols, CV_16U, &planes[0]));
+    cout << "PLANE" << endl << endl;
+
+    planesMat.push_back(Mat(rows, cols, CV_16U, &planes[1]));
+    cout << "PLANE" << endl << endl;
+
+    planesMat.push_back(Mat(rows, cols, CV_16U, &planes[2]));
+    cout << "PLANE" << endl << endl;
+
+    Mat image;
+    merge(planesMat, image);
+    return image;
 }
 
