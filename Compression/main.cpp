@@ -6,8 +6,7 @@
 #include "huffman.cpp"
 
 
-
-bool debug = false;
+bool debug = true;
 
 double QYarray[8][8] =  {{16, 11, 10, 16, 24, 40, 51, 61},
                          {12, 12, 14, 19, 26, 48, 60, 55},
@@ -28,36 +27,16 @@ double QCarray[8][8]=  {{17, 18, 24, 47, 99, 99, 99, 99},
                         {99, 99, 99, 99, 99, 99, 99, 99}};
 
 
-
-// distance between point 1 and point 2
-double distance(double x1, double y1, double x2, double y2) {
-    return sqrt((x1 - x2) * (x1 - x2) + (y1 - y2) * (y1 - y2));
-}
-
-void scaleUp(Mat& image, string window_name, int scale){
-    resize((image), (image), (image).size()*scale, scale, scale);   //resize image
-    resizeWindow(window_name, (image).cols, (image).rows);    // resize window
-
-    imshow(window_name, image);                   // Show our image inside it.
-}
-
-void scaleDown(Mat& image, string window_name, int scale){
-    resize((image), (image), (image).size()/scale, 1/scale, 1/scale);   //resize image
-    resizeWindow(window_name, (image).cols, (image).rows);    // resize window
-
-    imshow(window_name, (image));                   // Show our image inside it.
-}
-
-float average_error(Mat* originalImage, Mat* image){
+float average_error(Mat& originalImage, Mat& image){
     float Rerror = 0;
     float Gerror = 0;
     float Berror = 0;
 
-    for (int r = 0; r < (*image).rows; r++) {
-        for (int c = 0; c < (*image).cols; c++) {
+    for (int r = 0; r < image.rows; r++) {
+        for (int c = 0; c < image.cols; c++) {
 
             for (int i = 0; i < 3; i++){
-                float tmp = (*originalImage).at<Vec3b>(r,c)[i] - (*image).at<Vec3b>(r,c)[i];
+                float tmp = originalImage.at<Vec3b>(r,c)[i] - image.at<Vec3b>(r,c)[i];
 
                 if (i == 0) Berror += tmp*tmp;
                 if (i == 1) Gerror += tmp*tmp;
@@ -67,9 +46,9 @@ float average_error(Mat* originalImage, Mat* image){
         }
     }
 
-    Berror /= (*image).rows*(*image).cols;
-    Gerror /= (*image).rows*(*image).cols;
-    Rerror /= (*image).rows*(*image).cols;
+    Berror /= image.rows*image.cols;
+    Gerror /= image.rows*image.cols;
+    Rerror /= image.rows*image.cols;
 
     return (Rerror+Gerror+Berror)/3;
 }
@@ -81,8 +60,8 @@ void getQuantizationTables(int qualityFactor, vector<Mat> &quantizationTables){
     Mat QC = Mat(8, 8, CV_64FC1, &QCarray);
 
 
-    scale = 200 - 2 * qualityFactor;
-
+    if (qualityFactor < 50) scale = 5000 / qualityFactor;
+    else scale = 200 - 2 * qualityFactor;
 
 
     scale = scale / 100.0;
@@ -99,19 +78,9 @@ void getQuantizationTables(int qualityFactor, vector<Mat> &quantizationTables){
 }
 
 
-void goDct(Mat& image, bool inverse){
+void goDct(Mat& image, bool inverse, vector<Mat> quantizationTables){
     int height = image.rows;
     int width = image.cols;
-
-    int qualityFactor = -1;
-
-    while (qualityFactor > 100 || qualityFactor <= 0) {
-        cout << "Please enter a Quality Factor. It must be in the range [1..100]" << endl;
-        cin >> qualityFactor;
-    }
-
-    vector<Mat> quantizationTables;
-    getQuantizationTables(qualityFactor, quantizationTables);
 
 
     // split in 3 planes RGB
@@ -131,8 +100,6 @@ void goDct(Mat& image, bool inverse){
                 block.convertTo(block, CV_64FC1);
 
 
-                Mat outblock(block);
-
                 if (inverse){
                     if (j == 0 && i == 0) cout << "block: " << block << endl;
 
@@ -140,18 +107,18 @@ void goDct(Mat& image, bool inverse){
 
                     if (k == 0) multiply(block, quantizationTables[0], block);
                     else multiply(block, quantizationTables[1], block);
-                    if (j == 0 && i == 0 && debug) cout << "outblock6453: " << outblock << endl;
+                    if (j == 0 && i == 0 && debug) cout << "outblock6453: " << block << endl;
 
-                    idct(outblock, outblock);
-                    if (j == 0 && i == 0 && debug) cout << "outblock6452: " << outblock << endl;
+                    idct(block, block);
+                    if (j == 0 && i == 0 && debug) cout << "outblock6452: " << block << endl;
 
-                    if (j == 0 && i == 0 && debug) cout << "outblock6451: " << outblock << endl;
+                    if (j == 0 && i == 0 && debug) cout << "outblock6451: " << block << endl;
 
-                    add(outblock, 128, outblock);
-                    if (j == 0 && i == 0 && debug) cout << "outblock+218: " << outblock << endl;
+                    add(block, 128, block);
+                    if (j == 0 && i == 0 && debug) cout << "outblock+128: " << block << endl;
 
-                    outblock.copyTo(planes[k](Rect(j, i, 8, 8)));
-                    if (j == 0 && i == 0) cout << "outblock: " << outblock << endl;
+                    block.copyTo(planes[k](Rect(j, i, 8, 8)));
+                    if (j == 0 && i == 0) cout << "outblock: " << block << endl;
 
                 }
                 else {
@@ -160,17 +127,21 @@ void goDct(Mat& image, bool inverse){
                     subtract(block, 128, block);
                     if (j == 0 && i == 0 && debug) cout << "block132: " << block << endl;
 
-                    dct(block, outblock);
+                    dct(block, block);
 
-                    if (k == 0) divide(outblock, quantizationTables[0], outblock);
-                    else divide(outblock, quantizationTables[1], outblock);
+                    if (j == 0 && i == 0 && debug) cout << "block132: " << block << endl;
 
-                    add(outblock, 128, outblock);
-                    outblock.convertTo(outblock, CV_8U);
+                    if (k == 0) divide(block, quantizationTables[0], block);
+                    else divide(block, quantizationTables[1], block);
+
+                    if (j == 0 && i == 0 && debug) cout << "block132: " << block << endl;
+
+                    add(block, 128, block);
+                    block.convertTo(block, CV_32S);
 
 
-                    outblock.copyTo(planes[k](Rect(j, i, 8, 8)));
-                    if (j == 0 && i == 0 && debug) cout << "outblock312: " << outblock << endl;
+                    block.copyTo(planes[k](Rect(j, i, 8, 8)));
+                    if (j == 0 && i == 0 && debug) cout << "outblock312: " << block << endl;
                     if (j == 0 && i == 0) cout << "outblock312: " << planes[k](Rect(j, i, 8, 8)) << endl;
 
                 }
@@ -211,8 +182,19 @@ int main(int argc, char** argv) {
     cvtColor(original, yCbCrImage, CV_BGR2YCrCb);
 
     cout << "Creating DCT" << endl;
+
+    int qualityFactor = -1;
+
+    while (qualityFactor > 99 || qualityFactor <= 0) {
+        cout << "Please enter a Quality Factor. It must be in the range [1..99]" << endl;
+        cin >> qualityFactor;
+    }
+
+    vector<Mat> quantizationTables;
+    getQuantizationTables(qualityFactor, quantizationTables);
+
     dctImage = yCbCrImage.clone();
-    goDct(dctImage, 0);
+    goDct(dctImage, 0, quantizationTables);
 
 
     writeTo("../Compression/Images/compressedImage.kike", dctImage);
@@ -222,7 +204,7 @@ int main(int argc, char** argv) {
 
     cout << "Inverting DCT" << endl;
     idctImage = image.clone();
-    goDct(idctImage, 1);
+    goDct(idctImage, 1, quantizationTables);
 
     cout << "Inverting YCrCb" << endl;
     idctImage.convertTo(idctImage, CV_8U);
@@ -242,25 +224,12 @@ int main(int argc, char** argv) {
     imshow("Inverted DCTImage", idctImage);
     imshow("FINISHED", iYCbCrImage);
 
-    //cout << iYCbCrImage << endl;
-
     // put each image next to each other
     moveWindow("ORIGINAL", 0, 0);
     moveWindow("DCT", 50, 0);
     moveWindow("Inverted DCTImage", 100, 0);
 
-
-    //normalize(modified7, modified7, 0, 1, CV_MINMAX);
-    //normalize(originalBnW, originalBnW, 0, 1, CV_MINMAX);
-
-
-    //save image
-    //imwrite("DFT2.ppm", iYCbCrImage);
-
-    //cout << "Noisy: " << average_error(&original, &ppm) << endl;
-
-
-
+    cout << "average mean square error: " << average_error(original, iYCbCrImage) << endl;
 
     //infinite Exit loop
     while (1) {
