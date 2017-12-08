@@ -28,29 +28,25 @@ double QCarray[8][8]=  {{17, 18, 24, 47, 99, 99, 99, 99},
 
 
 float average_error(Mat& originalImage, Mat& image){
-    float Rerror = 0;
-    float Gerror = 0;
-    float Berror = 0;
+
+    float error = 0;
 
     for (int r = 0; r < image.rows; r++) {
         for (int c = 0; c < image.cols; c++) {
 
             for (int i = 0; i < 3; i++){
-                float tmp = originalImage.at<Vec3b>(r,c)[i] - image.at<Vec3b>(r,c)[i];
+                float tmp = abs(originalImage.at<Vec3b>(r,c)[i] - image.at<Vec3b>(r,c)[i]);
+                error += tmp*tmp;
 
-                if (i == 0) Berror += tmp*tmp;
-                if (i == 1) Gerror += tmp*tmp;
-                if (i == 2) Rerror += tmp*tmp;
 
             }
         }
     }
 
-    Berror /= image.rows*image.cols;
-    Gerror /= image.rows*image.cols;
-    Rerror /= image.rows*image.cols;
+    error /= image.rows*image.cols*3;
 
-    return (Rerror+Gerror+Berror)/3;
+
+    return error;
 }
 
 void getQuantizationTables(int qualityFactor, vector<Mat> &quantizationTables){
@@ -162,7 +158,7 @@ int main(int argc, char** argv) {
     Mat dctImage;
     Mat idctImage;
 	int x;      // needed for Visual Studio
-    string fileLocation = "../Compression/Images/1.ppm";
+    string fileLocation = "../Compression/Images/6-gs.ppm";
 
 
 	// Read the file
@@ -186,9 +182,14 @@ int main(int argc, char** argv) {
 
     int qualityFactor = -1;
 
-    while (qualityFactor > 99 || qualityFactor <= 0) {
+    while (qualityFactor > 74 || qualityFactor <= 0) {
         cout << "Please enter a Quality Factor. It must be in the range [1..74]" << endl;
-        cin >> qualityFactor;
+
+        string str;
+        cin >> str;
+        if(sscanf(str.c_str(), "%d", &qualityFactor) != 1){
+            qualityFactor = -1;
+        }
     }
 
     vector<Mat> quantizationTables;
