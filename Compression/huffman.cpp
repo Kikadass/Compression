@@ -24,6 +24,8 @@ using namespace cv;
 // if true it prints usefull information
 bool hDebug = false;
 
+//struct used to determine how to organize the piority_queue
+// higher frequency FNodes go on the left
 struct NodeCmp {
     bool operator()(const FNode* lhs, const FNode* rhs) const {
         return lhs->freq > rhs->freq;
@@ -36,6 +38,8 @@ FNode* buildTree(const map<uint8_t, int> &frequencies) {
     priority_queue<FNode*, vector<FNode*>, NodeCmp> trees;
 
     // get rid of values that do not appear, create leafs for those that do, and add leafs to tree
+    // as the tree is a priority queue, while adding the leafs it sorts them by frequency.
+    // higher frequency goes on the left (set by NodeCmp)
     for (auto i = frequencies.begin(); i != frequencies.end(); ++i) {
         uint8_t value = i->first;
         int freq = i->second;
@@ -50,15 +54,21 @@ FNode* buildTree(const map<uint8_t, int> &frequencies) {
     }
 
 
-    // go through the the leafs and build the tree from the root
+    // go through the the leafs and build the tree until we end up with the root
     while (trees.size() > 1) {
+
+        // get last item from the tree
         FNode* childR = trees.top();
+        // remove last item from the tree
         trees.pop();
 
+
+        // get last item from the tree
         FNode* childL = trees.top();
+        // remove last item from the tree
         trees.pop();
 
-        FNode* parent = new Parent(childR, childL);
+        FNode* parent = new Parent(childL, childR);
         trees.push(parent);
     }
 
@@ -75,13 +85,14 @@ void generateCodes(const FNode* FNode, const vector<bool>& hCode, map<uint8_t, v
     }
 
     // if it is not a leaf (is a parent) do recursive call, from left to right
+    // adding a 1 if it goes left and a 0 if it goes right
     else if (const Parent* parent = dynamic_cast<const Parent*>(FNode)) {
         vector<bool> leftPrefix = hCode;
-        leftPrefix.push_back(false);
+        leftPrefix.push_back(true);
         generateCodes(parent->left, leftPrefix, hMap);
 
         vector<bool> rightPrefix = hCode;
-        rightPrefix.push_back(true);
+        rightPrefix.push_back(false);
         generateCodes(parent->right, rightPrefix, hMap);
     }
 }
@@ -190,7 +201,7 @@ void writeImage(Mat image, map<uint8_t, vector<bool>> hMap, ofstream& ofile){
     // go through the image turning the pixel values into huffmanCodes and writing it byte by byte into the file
     // concatenate codes to complete the byte before writing into the file.
     // order: pixel in each channel, then next pixel
-    int current_bit = 0;
+    int currentBit = 0;
     bitset< 8 > bitCode;
     for (int i = 0; i < image.rows; i++) {
         for (int j = 0; j < image.cols; j++) {
@@ -206,16 +217,16 @@ void writeImage(Mat image, map<uint8_t, vector<bool>> hMap, ofstream& ofile){
                 // put code bit by bit into the byte
                 for (bool bit : code) {
 
-                    bitCode.set(7-current_bit, bit);
+                    bitCode.set(7-currentBit, bit);
 
-                    current_bit++;
+                    currentBit++;
 
                     // if byte is complete write to the file
-                    if (current_bit == 8) {
+                    if (currentBit == 8) {
                         unsigned long l = bitCode.to_ulong();
                         unsigned char c = static_cast<unsigned char>( l ); //8 bit bitsets
                         ofile.write(reinterpret_cast<const char *>(&c), sizeof(c));
-                        current_bit = 0;
+                        currentBit = 0;
                     }
                 }
             }
@@ -265,9 +276,9 @@ Mat readImage(int& j, vector<int>& buffer, map<vector<bool>, int>& iHMap){
     j++;
     int rows;
     int cols;
-    // get rows and columns of the image. They are written in 2 bytes each, inverted for some reason
+    // get rows and columns of the image. They are written in 2 bytes each, inverted
     // the first byte is actually the second
-    // get those 2 bytes and convine them properly
+    // get those 2 bytes and concatenate them properly
     for (int i = 0; i < 2; i++) {
         bitset<16> bitSetCode = bitset<16>(buffer[j]);
         j++;

@@ -6,7 +6,7 @@
 #include "huffman.cpp"
 
 
-bool debug = true;
+bool debug = false;
 
 double QYarray[8][8] =  {{16, 11, 10, 16, 24, 40, 51, 61},
                          {12, 12, 14, 19, 26, 48, 60, 55},
@@ -107,12 +107,13 @@ void goDct(Mat& image, bool inverse, vector<Mat> quantizationTables){
 
                     if (k == 0) multiply(block, quantizationTables[0], block);
                     else multiply(block, quantizationTables[1], block);
+
                     if (j == 0 && i == 0 && debug) cout << "outblock6453: " << block << endl;
 
                     idct(block, block);
+
                     if (j == 0 && i == 0 && debug) cout << "outblock6452: " << block << endl;
 
-                    if (j == 0 && i == 0 && debug) cout << "outblock6451: " << block << endl;
 
                     add(block, 128, block);
                     if (j == 0 && i == 0 && debug) cout << "outblock+128: " << block << endl;
@@ -186,7 +187,7 @@ int main(int argc, char** argv) {
     int qualityFactor = -1;
 
     while (qualityFactor > 99 || qualityFactor <= 0) {
-        cout << "Please enter a Quality Factor. It must be in the range [1..99]" << endl;
+        cout << "Please enter a Quality Factor. It must be in the range [1..74]" << endl;
         cin >> qualityFactor;
     }
 
@@ -199,7 +200,6 @@ int main(int argc, char** argv) {
 
     writeTo("../Compression/Images/compressedImage.kike", dctImage);
     Mat image = readFrom("../Compression/Images/compressedImage.kike");
-    imshow("image", image);
 
 
     cout << "Inverting DCT" << endl;
@@ -229,7 +229,7 @@ int main(int argc, char** argv) {
     moveWindow("DCT", 50, 0);
     moveWindow("Inverted DCTImage", 100, 0);
 
-    cout << "average mean square error: " << average_error(original, iYCbCrImage) << endl;
+    cout << "mean square error: " << average_error(original, iYCbCrImage) << endl;
 
     //infinite Exit loop
     while (1) {
